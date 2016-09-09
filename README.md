@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/totomz/moneymaker.svg?branch=master)](https://travis-ci.org/totomz/moneymaker)
+
 # moneymaker
 Find a never-extracted sequence for SuperEnalotto. Without any reason, it will work. 
 
