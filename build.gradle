@@ -48,3 +48,7 @@ jar {
        attributes 'Main-Class': 'com.github.totomz.mm.Main'
    }
 }
+
+task stage {
+  dependsOn clean, shadowJar
+}
