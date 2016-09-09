@@ -247,6 +247,8 @@ public class Main {
         // Answer to clients!
         Spark.port(getHerokuAssignedPort());
         
+        Spark.staticFileLocation("/public");
+        
         log.info("Starting web server");
         
         Gson gson = new Gson();
