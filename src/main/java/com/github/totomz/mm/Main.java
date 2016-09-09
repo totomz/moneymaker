@@ -260,9 +260,11 @@ public class Main {
             
         }, gson::toJson);             
         
-        Spark.get("/stop", (req, resp)-> {        
-            keepRunning.set(false);
-            return "Ciao";            
+        Spark.get("/stop", (req, resp)-> {                    
+            if(req.host().equals("localhost:4567")) {
+                keepRunning.set(false);    
+            }            
+            return "Bye";            
         }, gson::toJson);             
         
         Spark.awaitInitialization();
