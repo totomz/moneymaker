@@ -1,0 +1,25 @@
+#loading li {
+    list-style: none;
+    background: #d1703c;
+    color: #fff;
+    height: 0;
+    line-height: 2em;
+    margin: 0;
+    padding: 0 0.5em;
+    overflow: hidden;
+    width: 10em;
+}
+
+#loading li.show {
+    height: 2em;
+    margin: 2px 0;
+}
+
+#loading .fade li {
+    transition: all 1s ease-out;
+    opacity: 0;
+    height: 2em;
+}
+#loading li.show {
+    opacity: 1;
+}
