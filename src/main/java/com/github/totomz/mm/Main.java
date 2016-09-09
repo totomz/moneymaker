@@ -13,13 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 import javaslang.Function0;
 import javaslang.Function1;
 import javaslang.Function2;
@@ -211,9 +209,12 @@ public class Main {
     
     /**
      * @param args the command line arguments
+     * @throws InterruptedException
      */
     public static void main(String[] args) throws InterruptedException {
-   
+        
+        final AtomicBoolean keepRunning = new AtomicBoolean(true);
+        
         // drawings contains all the extracted tuples
         Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
                Optional.ofNullable(loadDrawingsFromFile.apply("output.txt"))
@@ -259,16 +260,17 @@ public class Main {
             
         }, gson::toJson);             
         
-        final AtomicBoolean keepRunning = new AtomicBoolean(true);
-        Spark.get("/stop", (req, resp)-> {
-        
+        Spark.get("/stop", (req, resp)-> {        
             keepRunning.set(false);
-            return "Ciao";
-            
+            return "Ciao";            
         }, gson::toJson);             
         
         Spark.awaitInitialization();
-        log.info("Main Thread is going to sleed forever");
+        log.info("Main Thread is going to sleep forever");
+        
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            keepRunning.set(false);
+        }));
         
         while(keepRunning.get()){
             Thread.sleep(1000);
