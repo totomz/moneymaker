@@ -1,5 +1,6 @@
 package com.github.totomz.mm;
 
+import com.google.gson.Gson;
 import io.restassured.RestAssured;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -11,12 +12,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 import javaslang.Function0;
 import javaslang.Function1;
 import javaslang.Function2;
+import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
 import org.jenetics.Genotype;
@@ -27,6 +34,7 @@ import org.jenetics.engine.EvolutionResult;
 import org.jenetics.util.Factory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import spark.Spark;
 
 public class Main {
     
@@ -58,23 +66,8 @@ public class Main {
                 })
                 .toJavaList();
     };
-
-
     
-    // Genetic algorithm eval strategies
-    /**
-     * Simply returns 1 if the sequence is unknown
-     */
-    private static final Function2<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, Genotype<IntegerGene>, Integer > doesNotExistsFitness = (map, gt) -> {
-        
-        int[] n = gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();
-        int score = (n.length == 6)?
-                map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))?0:1
-                :0;        
-        return score;
-    };
-    
-    private static final Function1<String, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>> loadDrawingsFromFile = file -> {
+    public static final Function1<String, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>> loadDrawingsFromFile = file -> {
     
         log.info("Loading drawings from file " + file);
         
@@ -134,27 +127,167 @@ public class Main {
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     };
     
+    
+    private static int getHerokuAssignedPort() {
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        if (processBuilder.environment().get("PORT") != null) {
+            return Integer.parseInt(processBuilder.environment().get("PORT"));
+        }
+        return 4567; 
+    }
+
+    ///////////////////////////////////////
+    // Genetic algorithm eval strategies //
+    ///////////////////////////////////////
+    public static final Function1<Genotype<IntegerGene>, int[]> mapGeneToValues = (gt) -> {
+        return gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();
+    };
+    
+    /**
+     * Simply returns 1 if the sequence is unknown
+     */
+    public static final Function2<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
+            doesNotExistsFitness = (map, n) -> {
+        
+//        int[] n = gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();
+        int score = (n.length == 6)?
+                map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))?0:1
+                :0;        
+        return score;
+    };
+    
+    /**
+     * Return a number [100,0] that depends on the uniqueness of each number in each position in the sequence
+     * IF the sequence is present in memeory, returns 0
+     * 
+     * This algorithm sucks, the best sequence is 1,2,3,4,5,6 !
+     */
+    public static final Function3<List<ConcurrentHashMap<Integer, AtomicInteger>>, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
+            preferNeverSeenNumbers = (occurrencies, map, n) -> {
+        
+//        int[] n = gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();        
+        
+        if( (n.length != 6) ||
+               (map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))) ) {
+            return 0;
+        }
+        
+        int score = map.size() * 6;
+        
+        for(int i=0;i<6;i++){            
+            if(occurrencies.get(i).get(n[i]).get() > 0){
+                score -= occurrencies.get(i).get(n[i]).get();
+            }
+        }        
+        return (int)((double)score/(map.size() * 6)  * 100);
+    };
+    
+    public static Function1<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, List<ConcurrentHashMap<Integer, AtomicInteger>>>
+            getStatistics = (draws) -> {
+              
+                List<ConcurrentHashMap<Integer, AtomicInteger>> occurenciesByPosition = Stream.of(
+                    new ConcurrentHashMap<Integer, AtomicInteger>(), new ConcurrentHashMap<Integer, AtomicInteger>(), 
+                    new ConcurrentHashMap<Integer, AtomicInteger>(), new ConcurrentHashMap<Integer, AtomicInteger>(),
+                    new ConcurrentHashMap<Integer, AtomicInteger>(), new ConcurrentHashMap<Integer, AtomicInteger>()).toJavaList();
+                
+                // Initialize the occurrencies
+                IntStream.range(1, 91).forEachOrdered(n -> {
+                    occurenciesByPosition.forEach(occ -> {
+                        occ.put(n, new AtomicInteger(0));
+                    });
+                });
+
+                draws.keySet().stream().forEach(t -> {
+                    occurenciesByPosition.get(0).get(t._1).incrementAndGet();
+                    occurenciesByPosition.get(1).get(t._2).incrementAndGet();
+                    occurenciesByPosition.get(2).get(t._3).incrementAndGet();
+                    occurenciesByPosition.get(3).get(t._4).incrementAndGet();
+                    occurenciesByPosition.get(4).get(t._5).incrementAndGet();
+                    occurenciesByPosition.get(5).get(t._6).incrementAndGet();                    
+                });
+                
+                return occurenciesByPosition;
+            };
+    
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
    
-       Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
+        // drawings contains all the extracted tuples
+        Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
                Optional.ofNullable(loadDrawingsFromFile.apply("output.txt"))
                .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("output.txt")));
 
+        // Count occurrencies on the i-th element
+        List<ConcurrentHashMap<Integer, AtomicInteger>> occurenciesByPosition = getStatistics.apply(drawings);
+        
+//        System.out.println("============ STATISTICS ============");
+//        occurenciesByPosition.forEach(occ -> {        
+//            System.out.println("*** ");
+//            System.out.print("{");
+//            occ.keySet().stream().sorted().forEach(n -> {
+//                System.out.print(String.format(" [%s, %s] ", n, occ.getOrDefault(n, new AtomicInteger(0)).get()));
+//            });                
+//        });
+//        System.out.println("============ STATISTICS ============");
+        
         // Choose the evaluating strategy
-        Function<Genotype<IntegerGene>, Integer> evalFunction = doesNotExistsFitness.curried().apply(drawings);
+        final Function<Genotype<IntegerGene>, Integer> evalFunction =  mapGeneToValues.andThen(doesNotExistsFitness.curried().apply(drawings));        
+//        Function<Genotype<IntegerGene>, Integer> evalFunction = mapGeneToValues.andThen(preferNeverSeenNumbers.curried().apply(occurenciesByPosition).curried().apply(drawings));
         
-        // Set a genetic algorithm to find an unknown sequence
+        // Use this function to give a score to the user
+        final Function<Genotype<IntegerGene>, Integer> publicScore = mapGeneToValues.andThen(preferNeverSeenNumbers.curried().apply(occurenciesByPosition).curried().apply(drawings));
+
+        // Set-up a genetic algorithm to find an unknown sequence
         final Factory<Genotype<IntegerGene>> factory = Genotype.of(IntegerChromosome.of(1, 90, 6));        
-        Engine<IntegerGene, Integer> engine = Engine.builder(evalFunction, factory).build();
+        final Engine<IntegerGene, Integer> engine = Engine.builder(evalFunction, factory).build();
         
-        Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());
+        // Answer to clients!
+        Spark.port(getHerokuAssignedPort());
         
-        log.info("Wanna be rich? Try this numbers!");
+        log.info("Starting web server");
         
-        String winnerSeq = result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().boxed().map(Object::toString).collect(Collectors.joining(", "));
-        log.info(winnerSeq);
+        Gson gson = new Gson();
+        Spark.get("/magicnumbers", (req, resp)-> {
+        
+            Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());
+            
+            int score = publicScore.apply(result);
+            resp.type("application/json");
+            return new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());
+            
+        }, gson::toJson);             
+        
+        final AtomicBoolean keepRunning = new AtomicBoolean(true);
+        Spark.get("/stop", (req, resp)-> {
+        
+            keepRunning.set(false);
+            return "Ciao";
+            
+        }, gson::toJson);             
+        
+        Spark.awaitInitialization();
+        log.info("Main Thread is going to sleed forever");
+        
+        while(keepRunning.get()){
+            Thread.sleep(1000);
+        }
+        
+        log.info("Shutting down");
+        Spark.stop();
+        log.info("Bye");
     }       
+}
+
+class Result {
+    
+    private int score;
+    private int[] numbers;
+
+    public Result(int score, int[] numbers) {
+        this.score = score;
+        this.numbers = numbers;
+    }
+    
 }
