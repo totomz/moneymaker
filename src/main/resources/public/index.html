@@ -51,6 +51,34 @@
             src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML">
     </script>
 
+    <style>
+        .loader {
+  height: 4px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background-color: #ddd;
+}
+.loader:before{
+  display: block;
+  position: absolute;
+  content: "";
+  left: -200px;
+  width: 200px;
+  height: 4px;
+  background-color: #2980b9;
+  animation: loading 2s linear infinite;
+}
+
+@keyframes loading {
+    from {left: -200px; width: 30%;}
+    50% {width: 30%;}
+    70% {width: 70%;}
+    80% { left: 50%;}
+    95% {left: 120%;}
+    to {left: 100%;}
+}
+    </style>
 
 </head>
 
@@ -222,14 +250,9 @@
                     <h4 class="modal-title" id="myModalLabel">La tua giocata</h4>
                 </div>
                 <div class="modal-body">
-                    ...
-                    <div id="pippo">
-                        <ul id="loading" >
-                            <li class="fade show">List item</li>
-                            <li class="fade show">List item</li>
-                        </ul>
-                    </div>
-                    ...
+                    <div class="loader" style="display: none" ></div>
+                    <div id="message" ></div>
+                    <p id="numbers" style="font-size: 32pt; color: #b2bcc5"></p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
@@ -248,20 +271,6 @@
 			 </div>
 			<div class="col-md-6 col-md-offset-3 text-center">
 				<div class="mockup-content">
-<!--                    <div class="morph-button wow pulse morph-button-inflow morph-button-inflow-1">
-                        <div id="disqus_thread"></div>                            
-                        <div class="morph-content">
-                            <div>
-                                <div class="content-style-form content-style-form-4 ">
-                                    <h2 class="morph-clone">Dai nostri utenti</h2>
-                                    <form>
-                                        <p><label>Your Email Address</label><input type="text"/></p>
-                                        <p><button>Subscribe me</button></p>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>-->
 <div id="disqus_thread"></div>
 <script>
 
@@ -323,6 +332,73 @@ var disqus_config = function () {
             newLI.className = newLI.className + " fade show";
         }, 10);
     }
+    
+    function delay(fn, t) {
+        // private instance variables
+        var queue = [], self, timer;
+
+        function schedule(fn, t) {
+            timer = setTimeout(function() {
+                timer = null;
+                fn();
+                if (queue.length) {
+                    var item = queue.shift();
+                    schedule(item.fn, item.t);
+                }
+            }, t);            
+        }
+        self = {
+            delay: function(fn, t) {
+                // if already queuing things or running a timer, 
+                //   then just add to the queue
+                  if (queue.length || timer) {
+                    queue.push({fn: fn, t: t});
+                } else {
+                    // no queue or timer yet, so schedule the timer
+                    schedule(fn, t);
+                }
+                return self;
+            },
+            cancel: function() {
+                clearTimeout(timer);
+                queue = [];
+            }
+        };
+        return self.delay(fn, t);
+    }
+
+    function rnd() {
+        return Math.floor(Math.random() * (3000 - 500 + 1)) + 500;
+    }
+    
+    $('#myModal').on('shown.bs.modal', function() {
+    
+        function log(message){
+            return function(){
+                $('#message').text(message);
+            };
+        }
+        
+        $('div.loader').css('display', 'block');
+        
+        log("Generazione seed algoritmo")();
+        delay(log("Verifica serie storiche SISAL"), rnd() )
+           .delay(log("Selezione giocata best-fit"), rnd())
+           .delay(function(){               
+               $.get('/magicnumbers.json', function(resp){                          
+                   $('div.loader').css('display', 'none');
+                   $('#message').text("Fatto! La tua sequenza magica è");
+                   $('#numbers').text(resp.numbers.join(' - '));
+               })
+                .fail(function(){
+                    console.info("cazzo è fallito!");
+                });
+                
+           }, rnd());
+        
+        console.log("Aaaaaaaaaaa");
+    });
+
 </script>
 
 </body>
