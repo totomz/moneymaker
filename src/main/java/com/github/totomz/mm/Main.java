@@ -252,7 +252,7 @@ public class Main {
         log.info("Starting web server");
         
         Gson gson = new Gson();
-        Spark.get("/magicnumbers", (req, resp)-> {
+        Spark.get("/magicnumbers.json", (req, resp)-> {
         
             Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());
             
