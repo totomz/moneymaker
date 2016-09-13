@@ -24,7 +24,7 @@ import javaslang.Function2;
 import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
-import org.eclipse.jetty.server.handler.ResourceHandler;
+import javaslang.control.Try;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerChromosome;
 import org.jenetics.IntegerGene;
@@ -45,7 +45,7 @@ public class Main {
     
     /**
      * Download the drawings of SuperEnalotto for a given year
-     */
+     */    
     public static final Function1<Integer, List<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >>> downloadExtractedSequenceByYear = (year) -> {
         
         log.info("Downloading SuperEnalotto drawings for year " + year);
@@ -127,7 +127,7 @@ public class Main {
     };
     
     
-    private static int getHerokuAssignedPort() {
+    protected static int getHerokuAssignedPort() {
         ProcessBuilder processBuilder = new ProcessBuilder();
         if (processBuilder.environment().get("PORT") != null) {
             return Integer.parseInt(processBuilder.environment().get("PORT"));
@@ -208,13 +208,17 @@ public class Main {
                 return occurenciesByPosition;
             };
     
+    
+    private static final AtomicBoolean keepRunning = new AtomicBoolean(true);
+    protected static void shutdown() {
+        keepRunning.set(false);
+    }
+    
     /**
      * @param args the command line arguments
      * @throws InterruptedException
      */
-    public static void main(String[] args) throws InterruptedException {
-        
-        final AtomicBoolean keepRunning = new AtomicBoolean(true);
+    public static void main(String[] args) {
         
         // drawings contains all the extracted tuples
         Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
@@ -272,24 +276,9 @@ public class Main {
         
         log.info("sarkazzo1");
         
-        Spark.get("/", (request, response) -> {
-        
-            log.info(request.contextPath());
-            log.info(request.body());
-            log.info(request.pathInfo());
-            log.info(request.queryString());
-            log.info(request.servletPath());
-            log.info(request.uri());
-            log.info(request.url());
-                    
-            System.out.println("aaaaaaaaaaaaaaaaaaa");
-            System.out.println(request.raw());
-            log.info("mapporcaputtana");
-            
-            return "aha";
-            
+        Spark.after("/img", (req, resp)-> {
+            log.info("Intercettata!");
         });
-        log.info("sarkazzo2");
         
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");
@@ -299,7 +288,8 @@ public class Main {
         }));
         
         while(keepRunning.get()){
-            Thread.sleep(1000);
+            try{Thread.sleep(1000);}
+            catch(Exception e){}
         }
         
         log.info("Shutting down");
