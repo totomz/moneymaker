@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +25,6 @@ import javaslang.Function2;
 import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
-import javaslang.control.Try;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerChromosome;
 import org.jenetics.IntegerGene;
@@ -55,7 +55,7 @@ public class Main {
                 .htmlPath()
                 .getList("**.findAll { it.@class == 'ball-24px' }");
         
-                // Create batch of 6 numbers
+        // Create batch of 6 numbers
         return Stream.ofAll(numbers)
                 .map(Integer::parseInt)
                 .grouped(6)
@@ -70,7 +70,7 @@ public class Main {
     
         log.info("Loading drawings from file " + file);
         
-        try(java.util.stream.Stream<String> stream = Files.lines(Paths.get(file))) {
+        try(java.util.stream.Stream<String> stream = Files.lines(Paths.get(ClassLoader.getSystemResource(file).toURI()))) {
             HashMap<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> res = new HashMap<>();
             stream.skip(1).forEach(line -> {                
                     Integer[] t = Stream.of(line.split(",")).map(String::trim).map(Integer::parseInt).toJavaArray(Integer.class);
@@ -120,7 +120,7 @@ public class Main {
      * Load the historical drawings from a remote service
      */
     private static final Function0< Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> > loadSisalData = () -> {
-        return IntStream.range(1997, 2017).parallel()
+        return IntStream.range(1997, 2016).parallel()
                 .mapToObj(downloadExtractedSequenceByYear::apply)
                 .flatMap(List::stream)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
@@ -147,8 +147,7 @@ public class Main {
      */
     public static final Function2<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
             doesNotExistsFitness = (map, n) -> {
-        
-//        int[] n = gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();
+                
         int score = (n.length == 6)?
                 map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))?0:1
                 :0;        
@@ -164,10 +163,7 @@ public class Main {
     public static final Function3<List<ConcurrentHashMap<Integer, AtomicInteger>>, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
             preferNeverSeenNumbers = (occurrencies, map, n) -> {
         
-//        int[] n = gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();        
-        
-        if( (n.length != 6) ||
-               (map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))) ) {
+        if( (n.length != 6) ||(map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))) ) {
             return 0;
         }
         
@@ -210,20 +206,16 @@ public class Main {
     
     
     private static final AtomicBoolean keepRunning = new AtomicBoolean(true);
-    protected static void shutdown() {
-        keepRunning.set(false);
-    }
-    
+
     /**
      * @param args the command line arguments
-     * @throws InterruptedException
      */
     public static void main(String[] args) {
         
         // drawings contains all the extracted tuples
         Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
-               Optional.ofNullable(loadDrawingsFromFile.apply("output.txt"))
-               .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("output.txt")));
+               Optional.ofNullable(loadDrawingsFromFile.apply("drawings.txt"))
+               .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("drawings.txt")));
 
         // Count occurrencies on the i-th element
         List<ConcurrentHashMap<Integer, AtomicInteger>> occurenciesByPosition = getStatistics.apply(drawings);
@@ -250,29 +242,24 @@ public class Main {
         final Engine<IntegerGene, Integer> engine = Engine.builder(evalFunction, factory).build();
         
         // Answer to clients!
-        Spark.port(getHerokuAssignedPort());
-        
+        log.info("Starting web server");
+        Spark.port(getHerokuAssignedPort());        
         Spark.staticFileLocation("/public");
         
-        log.info("Starting web server");
-        
         Gson gson = new Gson();
-        Spark.get("/magicnumbers.json", (req, resp)-> {
-        
-            Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());
-            
+        Spark.get("/magicnumbers.json", (req, resp)-> {        
+            Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());            
             int score = publicScore.apply(result);
             resp.type("application/json");
-            return new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());
-            
+            return new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());            
         }, gson::toJson);             
         
         Spark.get("/stop", (req, resp)-> {                    
             if(req.host().equals("localhost:4567")) {
                 keepRunning.set(false);    
             }            
-            return "Byeeeeeeee";            
-        }, gson::toJson);             
+            return "Byeeeeeeee";
+        }, gson::toJson);
         
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");
@@ -294,8 +281,8 @@ public class Main {
 
 class Result {
     
-    private int score;
-    private int[] numbers;
+    private final int score;
+    private final int[] numbers;
 
     public Result(int score, int[] numbers) {
         this.score = score;

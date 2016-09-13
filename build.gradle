@@ -57,6 +57,40 @@ jar {
    }
 }
 
+// Heroku
 task stage {
   dependsOn clean, shadowJar
+}
+
+// Unit test and Integration test setup
+test {
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed","standard_out", "standard_error"
+        exceptionFormat = 'full'
+    }
+    dependsOn 'cleanTest'
+    exclude '**/integration/**'
+}
+
+task integrationTest( type: Test ) {
+    dependsOn stage
+    include '**/integration/**'
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed","standard_out", "standard_error"
+        exceptionFormat = 'full'
+    }
+    
+    doFirst {   
+        println "Starting application"
+        println "$buildDir "
+//        exec {
+//            workingDir "$project.rootDir/turbodeploy"
+//            commandLine './turbodeploy.sh', 'run', '--context','dev', '--proxy', '--redis'
+//        }        
+    }
+    
+    // finalize is always executed, doLast is not exec if there are test failures
+//    finalizedBy cleanRunningContainers    
 }
