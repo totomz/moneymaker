@@ -274,12 +274,6 @@ public class Main {
             return "Byeeeeeeee";            
         }, gson::toJson);             
         
-        log.info("sarkazzo1");
-        
-        Spark.after("/img", (req, resp)-> {
-            log.info("Intercettata!");
-        });
-        
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");
         
