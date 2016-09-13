@@ -24,6 +24,7 @@ import javaslang.Function2;
 import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
+import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerChromosome;
 import org.jenetics.IntegerGene;
@@ -266,8 +267,29 @@ public class Main {
             if(req.host().equals("localhost:4567")) {
                 keepRunning.set(false);    
             }            
-            return "Bye";            
+            return "Byeeeeeeee";            
         }, gson::toJson);             
+        
+        log.info("sarkazzo1");
+        
+        Spark.get("/", (request, response) -> {
+        
+            log.info(request.contextPath());
+            log.info(request.body());
+            log.info(request.pathInfo());
+            log.info(request.queryString());
+            log.info(request.servletPath());
+            log.info(request.uri());
+            log.info(request.url());
+                    
+            System.out.println("aaaaaaaaaaaaaaaaaaa");
+            System.out.println(request.raw());
+            log.info("mapporcaputtana");
+            
+            return "aha";
+            
+        });
+        log.info("sarkazzo2");
         
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");
