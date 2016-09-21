@@ -6,6 +6,10 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -70,17 +74,26 @@ public class Main {
     
         log.info("Loading drawings from file " + file);
         
-        try(java.util.stream.Stream<String> stream = Files.lines(Paths.get(ClassLoader.getSystemResource(file).toURI()))) {
+        try {
+            
+            URI uri = ClassLoader.getSystemResource(file).toURI();
+            Map<String, String> env = new HashMap<>(); 
+            env.put("create", "true");
+            FileSystem zipfs = FileSystems.newFileSystem(uri, env);
+        
+            java.util.stream.Stream<String> stream = Files.lines(Paths.get(ClassLoader.getSystemResource(file).toURI()));
+ 
             HashMap<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> res = new HashMap<>();
             stream.skip(1).forEach(line -> {                
                     Integer[] t = Stream.of(line.split(",")).map(String::trim).map(Integer::parseInt).toJavaArray(Integer.class);
                     res.put(new Tuple6<>(t[1], t[2], t[3], t[4], t[5], t[6]), 
                             new Long(t[0]));                            
-                });
+            });
             
             return res;
+            
         }
-        catch (Exception e){
+        catch(URISyntaxException | IOException | NullPointerException e) {
             log.error("Error loading drawings from file", e);
         }
         
