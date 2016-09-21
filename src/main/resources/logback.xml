@@ -9,6 +9,7 @@
   
     <logger name="ch.qos.logback.core" level="WARN"/>
     <logger name="org.eclipse.jetty" level="WARN"/>
+    <logger name="spark" level="INFO"/>
     
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>log.log</file>        
