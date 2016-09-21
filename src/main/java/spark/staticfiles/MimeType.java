@@ -96,7 +96,11 @@ public class MimeType {
 
     public static String fromResource(AbstractFileResolvingResource resource) {
         String filename = Optional.ofNullable(resource.getFilename()).orElse("");
-        String fileExtension = filename.replaceAll("^.*\\.(.*)$", "$1");
+        return fromResource(filename);
+    }
+
+    static String fromResource(String resource) {               
+        String fileExtension = resource.substring(resource.lastIndexOf(".") + 1);
         return mappings.getOrDefault(fileExtension, "application/octet-stream");
     }
 

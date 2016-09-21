@@ -37,7 +37,7 @@ public class JarResourceHandler {
     private static final Logger LOG = LoggerFactory.getLogger(JarResourceHandler.class);
 
     private final String baseResource;
-    private String welcomeFile;
+    private final String welcomeFile;
 
     /**
      * Constructor
@@ -52,6 +52,15 @@ public class JarResourceHandler {
         this.welcomeFile = welcomeFile;
     }
 
+    public String getResourceName(HttpServletRequest request) {
+        String path = UriPath.canonical(request.getPathInfo());
+        if (path.equals("/") && welcomeFileConfigured()) {
+            path = this.baseResource + "/" + this.welcomeFile;
+        }
+        
+        return path;
+    }
+    
     public InputStream getResource(HttpServletRequest request) throws MalformedURLException {
 
         String servletPath;
