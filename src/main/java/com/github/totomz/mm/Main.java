@@ -11,19 +11,16 @@ import java.net.URISyntaxException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javaslang.Function0;
 import javaslang.Function1;
 import javaslang.Function2;
 import javaslang.Function3;
@@ -70,7 +67,7 @@ public class Main {
                 .toJavaList();
     };
     
-    public static final Function1<String, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>> loadDrawingsFromFile = file -> {
+    private static final Function1<String, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>> loadDrawingsFromFile = file -> {
     
         log.info("Loading drawings from file " + file);
         
@@ -132,8 +129,9 @@ public class Main {
     /**
      * Load the historical drawings from a remote service
      */
-    private static final Function0< Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> > loadSisalData = () -> {
-        return IntStream.range(1997, 2016).parallel()
+    private static final Function2<Integer, Integer,  Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> > 
+            loadSisalData = (startInclusive, endExclusive) -> {
+        return IntStream.range(startInclusive, endExclusive).parallel()
                 .mapToObj(downloadExtractedSequenceByYear::apply)
                 .flatMap(List::stream)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
@@ -151,14 +149,14 @@ public class Main {
     ///////////////////////////////////////
     // Genetic algorithm eval strategies //
     ///////////////////////////////////////
-    public static final Function1<Genotype<IntegerGene>, int[]> mapGeneToValues = (gt) -> {
+    private static final Function1<Genotype<IntegerGene>, int[]> mapGeneToValues = (gt) -> {
         return gt.getChromosome().stream().mapToInt(IntegerGene::intValue).distinct().sorted().toArray();
     };
     
     /**
      * Simply returns 1 if the sequence is unknown
      */
-    public static final Function2<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
+    protected static final Function2<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
             doesNotExistsFitness = (map, n) -> {
                 
         int score = (n.length == 6)?
@@ -173,7 +171,7 @@ public class Main {
      * 
      * This algorithm sucks, the best sequence is 1,2,3,4,5,6 !
      */
-    public static final Function3<List<ConcurrentHashMap<Integer, AtomicInteger>>, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
+    protected static final Function3<List<ConcurrentHashMap<Integer, AtomicInteger>>, Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, int[], Integer > 
             preferNeverSeenNumbers = (occurrencies, map, n) -> {
         
         if( (n.length != 6) ||(map.containsKey(new Tuple6<>(n[0], n[1], n[2], n[3], n[4], n[5]))) ) {
@@ -190,7 +188,7 @@ public class Main {
         return (int)((double)score/(map.size() * 6)  * 100);
     };
     
-    public static Function1<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, List<ConcurrentHashMap<Integer, AtomicInteger>>>
+    protected static Function1<Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long>, List<ConcurrentHashMap<Integer, AtomicInteger>>>
             getStatistics = (draws) -> {
               
                 List<ConcurrentHashMap<Integer, AtomicInteger>> occurenciesByPosition = Stream.of(
@@ -226,10 +224,18 @@ public class Main {
     public static void main(String[] args) {
         
         // drawings contains all the extracted tuples
-        Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
-               Optional.ofNullable(loadDrawingsFromFile.apply("drawings.txt"))
-               .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("drawings.txt")));
+//        Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
+//               Optional.ofNullable(loadDrawingsFromFile.apply("drawings.txt"))
+//               .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("drawings.txt")));
+//
+//        loadSisalData.andThen(getStatistics)
 
+        Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings =
+            loadDrawingsFromFile.andThen((map) -> {
+                map.putAll(loadSisalData.apply(2016, 2017));
+                return map;
+            }).apply("drawings.txt");
+        
         // Count occurrencies on the i-th element
         List<ConcurrentHashMap<Integer, AtomicInteger>> occurenciesByPosition = getStatistics.apply(drawings);
         
@@ -277,9 +283,7 @@ public class Main {
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");
         
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            keepRunning.set(false);
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {keepRunning.set(false);}));
         
         while(keepRunning.get()){
             try{Thread.sleep(1000);}
