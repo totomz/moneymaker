@@ -26,6 +26,7 @@ import javaslang.Function2;
 import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
+import javaslang.control.Try;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerChromosome;
 import org.jenetics.IntegerGene;
@@ -73,11 +74,17 @@ public class Main {
         log.info("Loading drawings from file " + file);
         
         try {
+
+            try {
+                URI uri = ClassLoader.getSystemResource(file).toURI();
+                Map<String, String> env = new HashMap<>(); 
+                env.put("create", "true");
+                FileSystem zipfs = FileSystems.newFileSystem(uri, env);
+            }
+            catch(Exception e) {
+                log.error("Could not load ZipFileSystem - NOT A PROBLEM if you are running local", e);
+            }
             
-            URI uri = ClassLoader.getSystemResource(file).toURI();
-            Map<String, String> env = new HashMap<>(); 
-            env.put("create", "true");
-            FileSystem zipfs = FileSystems.newFileSystem(uri, env);
         
             java.util.stream.Stream<String> stream = Files.lines(Paths.get(ClassLoader.getSystemResource(file).toURI()));
  
@@ -268,9 +275,14 @@ public class Main {
         Spark.get("/magicnumbers.json", (req, resp)-> {        
             Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());            
             int score = publicScore.apply(result);
+            
+            try(Jedis jedis = Settings.jedis()) {jedis.incr("req:ip:" + req.ip());}
+            
             resp.type("application/json");
             return new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());            
         }, gson::toJson);             
+        
+        
         
         Spark.get("/stop", (req, resp)-> {                    
             if(req.host().equals("localhost:4567")) {
@@ -278,6 +290,9 @@ public class Main {
             }            
             return "Byeeeeeeee";
         }, gson::toJson);
+        
+        
+        
         
         Spark.get("/jack", (req, res) -> {
         
