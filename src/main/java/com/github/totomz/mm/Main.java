@@ -34,6 +34,7 @@ import org.jenetics.engine.EvolutionResult;
 import org.jenetics.util.Factory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
 import spark.Spark;
 
 public class Main {
@@ -222,13 +223,6 @@ public class Main {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        
-        // drawings contains all the extracted tuples
-//        Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings = 
-//               Optional.ofNullable(loadDrawingsFromFile.apply("drawings.txt"))
-//               .orElseGet(loadSisalData.andThen(writeToFile.curried().apply("drawings.txt")));
-//
-//        loadSisalData.andThen(getStatistics)
 
         Map<Tuple6<Integer, Integer, Integer, Integer, Integer, Integer >, Long> drawings =
             loadDrawingsFromFile.andThen((map) -> {
@@ -266,6 +260,11 @@ public class Main {
         Spark.staticFileLocation("/public");
         
         Gson gson = new Gson();
+        
+        //////////////////
+        // WEB SERVICES //
+        //////////////////
+        
         Spark.get("/magicnumbers.json", (req, resp)-> {        
             Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());            
             int score = publicScore.apply(result);
@@ -279,6 +278,20 @@ public class Main {
             }            
             return "Byeeeeeeee";
         }, gson::toJson);
+        
+        Spark.get("/jack", (req, res) -> {
+        
+            try(Jedis jedis = Settings.jedis()) {
+                String counter = jedis.incr("test:redis").toString();
+                res.type("application/json");
+                return String.format("{\"counter\": %s}", counter);
+            }
+            
+        });
+        
+        ///////////////////        
+        // Cleanup & boh //
+        ///////////////////
         
         Spark.awaitInitialization();
         log.info("Main Thread is going to sleep forever");

@@ -33,6 +33,7 @@ dependencies {
     compile 'ch.qos.logback:logback-core:1.1.7'
 //    compile 'com.sparkjava:spark-core:2.6'
     compile 'com.google.code.gson:gson:2.7'
+    compile 'redis.clients:jedis:2.9.0'
 
     // sparkjava
     //9.3.6.v20151106
