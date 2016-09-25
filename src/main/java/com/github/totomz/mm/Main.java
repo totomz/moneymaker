@@ -12,9 +12,13 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,7 +30,6 @@ import javaslang.Function2;
 import javaslang.Function3;
 import javaslang.Tuple6;
 import javaslang.collection.Stream;
-import javaslang.control.Try;
 import org.jenetics.Genotype;
 import org.jenetics.IntegerChromosome;
 import org.jenetics.IntegerGene;
@@ -276,10 +279,23 @@ public class Main {
             Genotype<IntegerGene> result = engine.stream().limit(1000).collect(EvolutionResult.toBestGenotype());            
             int score = publicScore.apply(result);
             
-            try(Jedis jedis = Settings.jedis()) {jedis.incr("req:ip:" + req.ip());}
+            String client = Optional.ofNullable(req.headers("x-me")).orElse("nan");
+            if(client.equalsIgnoreCase("nan")){
+                Spark.halt(401, "Go away!");
+            }
+            
+            Result ressult = new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());
+            
+            try(Jedis jedis = Settings.jedis()) {
+                jedis.incr("req:fin:" + client);                
+                jedis.zadd("seq:"+ client, ZonedDateTime.now(ZoneOffset.UTC).toEpochSecond(), gson.toJson(ressult));
+            }
+            
+            // See comments in https://github.com/totomz/moneymaker/issues/3
+//            try(Jedis jedis = Settings.jedis()) {jedis.incr("req:ip:" + req.ip());}
             
             resp.type("application/json");
-            return new Result(score, result.getChromosome().stream().mapToInt(IntegerGene::intValue).sorted().toArray());            
+            return ressult;
         }, gson::toJson);             
         
         
@@ -326,12 +342,14 @@ public class Main {
 
 class Result {
     
-    private final int score;
+    private final String date;
     private final int[] numbers;
-
+    private final int score;
+    
     public Result(int score, int[] numbers) {
         this.score = score;
         this.numbers = numbers;
+        this.date = LocalDateTime.now(ZoneOffset.UTC).toString();
     }
     
 }

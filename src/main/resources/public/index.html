@@ -20,6 +20,8 @@
       ga('send', 'pageview');
 
     </script>
+    <script src="//cdn.jsdelivr.net/fingerprintjs2/1.4.1/fingerprint2.min.js"></script>
+    
     <title>SuperEnalotto Sistema vincente</title>
 
     <!-- Bootstrap core CSS -->
@@ -337,6 +339,14 @@ var disqus_config = function () {
 	<script src="js/jquery.magnific-popup.js"></script>
     <script src="js/jquery.gauge.min.js"></script>
 <script>
+    
+    new Fingerprint2().get(function(fingerprint){
+        console.log(fingerprint);
+        $.ajaxSetup({
+            headers: { 'x-me': fingerprint }
+        });
+    });
+    
     var i = 0;
     function pippo() {
         var list = document.getElementById('loading');
