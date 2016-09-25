@@ -284,7 +284,7 @@ public class Main {
             try(Jedis jedis = Settings.jedis()) {
                 String counter = jedis.incr("test:redis").toString();
                 res.type("application/json");
-                return String.format("{\"counter\": %s}", counter);
+                return String.format("{\"acounter\": %s}", counter);
             }
             
         });
